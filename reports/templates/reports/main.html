@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}
+reports
+{% endblock title %}
+
+{% block content %}
+    reports
+    <br>
+    {% for obj in object_list %}
+        <a href={{obj.get_absolute_url}}>{{obj.name}}</a>
+        <br>
+    {% endfor %}
+{% endblock content %}
