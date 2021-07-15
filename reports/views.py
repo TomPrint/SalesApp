@@ -10,6 +10,8 @@ from django.http import HttpResponse
 from django.template.loader import get_template
 from xhtml2pdf import pisa
 from sales.models import Sale, Position, CSV
+from products.models import Product
+from customers.models import Customer
 import csv
 from django.utils.dateparse import parse_date
 
@@ -31,24 +33,44 @@ def csv_upload_view(request):
 
 
     if request.method == 'POST':
+        csv_file_name = request.FILES.get('file').name
         csv_file = request.FILES.get('file')
-        obj = CSV.objects.create(file_name=csv_file)
+        obj, created = CSV.objects.get_or_create(file_name=csv_file_name)
 
-        with open(obj.file_name.path, 'r') as f:
-            reader = csv.reader(f)
-            reader.__next__()
-            for row in reader:
-                print(row, type(row))
-                data = "".join(row)
-                print(data,type(data))
-                data = data.split(';')
-                print(data, type(data))
+        if created:
+            obj.csv_file = csv_file
+            obj.save()
+            with open(obj.csv_file.path, 'r') as f:
+                reader = csv.reader(f)
+                reader.__next__()
+                for row in reader:
 
-                transaction_id = data[1]
-                product = data[2]
-                quantity = int(data[3])
-                customer = data[5]
-                date = parse_date(data[6])
+                    data = "".join(row)
+                    data = data.split(';')
+                    transaction_id = data[1]
+                    product = data[2]
+                    quantity = int(data[3])
+                    customer = data[4]
+                    date = parse_date(data[5])
+
+                    try:
+                        product_obj = Product.objects.get(name__iexact=product)
+                    except Product.DoesNotExist:
+                        product_obj = None
+
+                    print (product_obj)
+
+                    if product_obj is not None:
+                        customer_obj,_ = Customer.objects.get_or_create(name=customer)
+                        salesman_obj = Profile.objects.get(user = request.user)
+                        position_obj = Position.objects.create(product=product_obj, quantity = quantity, created = date)
+
+                        sale_obj, _ = Sale.objects.get_or_create(transaction_id = transaction_id, customer = customer_obj, salesman = salesman_obj, created = date)
+                        sale_obj.positions.add(position_obj)
+                        sale_obj.save()
+                return JsonResponse({'ex': False})
+        else:
+            return JsonResponse({'ex':True})
 
 
     return HttpResponse()
